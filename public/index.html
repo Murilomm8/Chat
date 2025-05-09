@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chat em Tempo Real – Projetop Top</title>
+  
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  
+  <!-- Google Fonts: Poppins -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+  
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <style>
+    body {
+      background-color: #f8f9fa;
+      font-family: 'Poppins', sans-serif;
+    }
+    .chat-container {
+      max-width: 700px;
+      margin: 30px auto;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+      padding: 20px;
+      position: relative;
+    }
+    .chat-header {
+      text-align: center;
+      margin-bottom: 20px;
+      position: relative;
+    }
+    .chat-header h3 {
+      margin: 0;
+    }
+    .users-online {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      display: flex;
+      gap: 5px;
+    }
+    .users-online img {
+      width: 35px;
+      height: 35px;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .messages {
+      height: 300px;
+      overflow-y: auto;
+      background-color: #e9ecef;
+      padding: 10px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+      display: flex;
+      flex-direction: column;
+    }
+    .message {
+      padding: 10px;
+      margin-bottom: 10px;
+      max-width: 80%;
+      border-radius: 10px;
+      position: relative;
+      word-wrap: break-word;
+    }
+    .my-message {
+      background-color: #dcf8c6;
+      align-self: flex-end;
+      border-radius: 10px 0 10px 10px;
+    }
+    .other-message {
+      background-color: #fff;
+      border: 1px solid #ddd;
+      align-self: flex-start;
+      border-radius: 0 10px 10px 10px;
+    }
+    .message-username {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .timestamp {
+      font-size: 0.75rem;
+      color: #666;
+      margin-top: 4px;
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+  <!-- Modal para Escolha do Nome -->
+  <div class="modal" id="usernameModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="usernameModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="usernameModalLabel">Escolha seu nome</h5>
+        </div>
+        <div class="modal-body">
+          <input type="text" id="usernameInput" class="form-control" placeholder="Digite seu nome">
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="saveUsernameBtn" class="btn btn-primary">Entrar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Container do Chat -->
+  <div class="container chat-container">
+    <div class="chat-header">
+      <h3>Chat em Tempo Real</h3>
+      <div id="onlineUsers" class="users-online"></div>
+    </div>
+    <div id="messages" class="messages"></div>
+    <form id="chat-form" class="d-flex">
+      <input id="message-input" type="text" class="form-control me-2" placeholder="Digite sua mensagem..." autocomplete="off" required>
+      <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Enviar</button>
+    </form>
+  </div>
+  
+  <!-- Socket.IO Client (servido pelo servidor) -->
+  <script src="/socket.io/socket.io.js"></script>
+  <!-- Bootstrap Bundle JS (inclui Popper) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  
+  <script>
+    // Variáveis globais
+    let username = "";
+    const userColors = {};
+
+    // Gera uma cor HSL aleatória para cada nome (se ainda não tiver)
+    function getUserColor(name) {
+      if(userColors[name]) return userColors[name];
+      const hue = Math.floor(Math.random() * 360);
+      const color = `hsl(${hue}, 70%, 50%)`;
+      userColors[name] = color;
+      return color;
+    }
+
+    // Exibe o modal de escolha de nome
+    const usernameModal = new bootstrap.Modal(document.getElementById('usernameModal'));
+    document.addEventListener('DOMContentLoaded', () => {
+      usernameModal.show();
+    });
+
+    const socket = io();
+
+    // Quando o usuário clicar para salvar o nome
+    document.getElementById('saveUsernameBtn').addEventListener('click', () => {
+      const input = document.getElementById('usernameInput');
+      const name = input.value.trim();
+      if(name === "") return;
+      username = name;
+      socket.emit('set username', username);
+      usernameModal.hide();
+    });
+
+    const chatForm = document.getElementById('chat-form');
+    const messageInput = document.getElementById('message-input');
+    const messagesContainer = document.getElementById('messages');
+    const onlineUsersContainer = document.getElementById('onlineUsers');
+
+    // Envia mensagem ao submeter formulário
+    chatForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if(username === "") {
+        alert("Você precisa escolher um nome primeiro!");
+        return;
+      }
+      const text = messageInput.value;
+      socket.emit('chat message', { username, message: text });
+      messageInput.value = '';
+      messageInput.focus();
+    });
+
+    // Renderiza cada mensagem recebida
+    socket.on('chat message', (data) => {
+      const { username: sender, message, timestamp } = data;
+      const messageDiv = document.createElement('div');
+      messageDiv.classList.add('message');
+      if(sender === username) {
+        messageDiv.classList.add('my-message');
+      } else {
+        messageDiv.classList.add('other-message');
+      }
+      
+      if(sender !== username) {
+        const nameDiv = document.createElement('div');
+        nameDiv.classList.add('message-username');
+        nameDiv.textContent = sender;
+        nameDiv.style.color = getUserColor(sender);
+        messageDiv.appendChild(nameDiv);
+      }
+      
+      const textDiv = document.createElement('div');
+      textDiv.textContent = message;
+      messageDiv.appendChild(textDiv);
+      
+      const timeDiv = document.createElement('div');
+      timeDiv.classList.add('timestamp');
+      timeDiv.textContent = timestamp;
+      messageDiv.appendChild(timeDiv);
+      
+      messagesContainer.appendChild(messageDiv);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    });
+
+    // Atualiza a lista de usuários online
+    socket.on('online users', (users) => {
+      onlineUsersContainer.innerHTML = "";
+      users.forEach(user => {
+        const img = document.createElement('img');
+        // Gera avatar usando UI Avatars (background fixo para manter consistência)
+        img.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user)}&background=0D8ABC&color=fff&size=32`;
+        img.title = user;
+        onlineUsersContainer.appendChild(img);
+      });
+    });
+  </script>
+</body>
+</html>
