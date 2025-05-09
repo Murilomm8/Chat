@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Chat em Tempo Real – Projetop Top</title>
+  <title>Chat em Tempo Real – Projeto Top</title>
   
   <!-- Bootstrap CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -15,26 +15,75 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
   <style>
-    body {
-      background-color: #f8f9fa;
-      font-family: 'Poppins', sans-serif;
+    /* Variáveis para tema */
+    :root {
+      --bg-claro: #f8f9fa;
+      --bg-container: #fff;
+      --bg-messages: #e9ecef;
+      --text-default: #333;
+      --primary-color: #0D8ABC;
     }
+    body {
+      background: linear-gradient(135deg, #f2f2f2, #e6e6e6);
+      font-family: 'Poppins', sans-serif;
+      color: var(--text-default);
+      transition: background 0.3s, color 0.3s;
+      padding-bottom: 70px;
+    }
+    /* Dark mode */
+    .dark-mode {
+      --bg-claro: #121212;
+      --bg-container: #1e1e1e;
+      --bg-messages: #2c2c2c;
+      --text-default: #eee;
+      background: #121212;
+      color: var(--text-default);
+    }
+    /* Container do chat */
     .chat-container {
       max-width: 700px;
       margin: 30px auto;
-      background-color: #fff;
+      background-color: var(--bg-container);
       border-radius: 8px;
-      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+      box-shadow: 0 8px 16px rgba(0,0,0,0.1);
       padding: 20px;
       position: relative;
+      overflow: hidden;
+    }
+    /* Fundo animado (keyframe simples) */
+    .chat-container::before {
+      content: "";
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(13,138,188,0.15), transparent 70%);
+      animation: rotateBg 30s linear infinite;
+      z-index: 0;
+    }
+    @keyframes rotateBg {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .chat-container > * {
+      position: relative;
+      z-index: 1;
     }
     .chat-header {
       text-align: center;
       margin-bottom: 20px;
       position: relative;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #ddd;
     }
     .chat-header h3 {
       margin: 0;
+    }
+    .room-name {
+      margin-top: 5px;
+      font-size: 1.1em;
+      color: #555;
     }
     .users-online {
       position: absolute;
@@ -50,35 +99,52 @@
       border: 2px solid #fff;
       box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
+    .dark-mode .users-online img {
+      border-color: #333;
+    }
     .messages {
       height: 300px;
       overflow-y: auto;
-      background-color: #e9ecef;
+      background-color: var(--bg-messages);
       padding: 10px;
       border-radius: 4px;
       margin-bottom: 20px;
       display: flex;
       flex-direction: column;
     }
-    .message {
-      padding: 10px;
-      margin-bottom: 10px;
-      max-width: 80%;
-      border-radius: 10px;
-      position: relative;
-      word-wrap: break-word;
-    }
-    .my-message {
-      background-color: #dcf8c6;
-      align-self: flex-end;
-      border-radius: 10px 0 10px 10px;
-    }
-    .other-message {
-      background-color: #fff;
-      border: 1px solid #ddd;
-      align-self: flex-start;
-      border-radius: 0 10px 10px 10px;
-    }
+   .message {
+  padding: 10px;
+  margin-bottom: 10px;
+  max-width: 80%;
+  border-radius: 10px;
+  word-wrap: break-word;
+  position: relative;
+  opacity: 0;
+}
+.fade-in {
+  animation: fadeIn 0.5s forwards;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.my-message {
+  background-color: #dcf8c6;
+  align-self: flex-end;
+  border-radius: 10px 0 10px 10px;
+}
+.other-message {
+  background-color: var(--bg-container);
+  border: 1px solid #ddd;
+  align-self: flex-start;
+  border-radius: 0 10px 10px 10px;
+}
+
+/* Dark mode override para mensagens do usuário */
+.dark-mode .my-message {
+  background-color: #2c532c; /* Cor de fundo mais escura para modo escuro */
+  color: #fff;              /* Texto branco */
+}
     .message-username {
       font-weight: 600;
       margin-bottom: 4px;
@@ -89,18 +155,58 @@
       margin-top: 4px;
       text-align: right;
     }
+    .typing-indicator {
+      font-size: 0.9rem;
+      color: #888;
+      font-style: italic;
+      margin-bottom: 10px;
+    }
+    /* Toggle Dark Mode Button */
+    .toggle-theme {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: var(--text-default);
+      z-index: 2;
+    }
+    /* Toast container */
+    #toastContainer {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 1055;
+    }
   </style>
 </head>
 <body>
-  <!-- Modal para Escolha do Nome -->
+  <!-- Toast Container para notificações -->
+  <div id="toastContainer"></div>
+
+  <!-- Modal para Escolha do Nome e Sala -->
   <div class="modal" id="usernameModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="usernameModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title" id="usernameModalLabel">Escolha seu nome</h5>
+          <h5 class="modal-title" id="usernameModalLabel">Entre no Chat</h5>
         </div>
         <div class="modal-body">
-          <input type="text" id="usernameInput" class="form-control" placeholder="Digite seu nome">
+          <div class="mb-3">
+            <label for="usernameInput" class="form-label">Nome de Usuário</label>
+            <input type="text" id="usernameInput" class="form-control" placeholder="Digite seu nome">
+          </div>
+          <div class="mb-3">
+            <label for="roomSelect" class="form-label">Selecione a Sala</label>
+            <select id="roomSelect" class="form-select">
+              <option value="Geral">Geral</option>
+              <option value="Tecnologia">Tecnologia</option>
+              <option value="Música">Música</option>
+              <option value="Esportes">Esportes</option>
+            </select>
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" id="saveUsernameBtn" class="btn btn-primary">Entrar</button>
@@ -108,14 +214,21 @@
       </div>
     </div>
   </div>
-  
+
+  <!-- Toggle Dark Mode Button -->
+  <button class="toggle-theme" id="toggleTheme" title="Alternar tema">
+    <i class="fas fa-moon"></i>
+  </button>
+
   <!-- Container do Chat -->
   <div class="container chat-container">
     <div class="chat-header">
       <h3>Chat em Tempo Real</h3>
+      <div class="room-name" id="roomName"></div>
       <div id="onlineUsers" class="users-online"></div>
     </div>
     <div id="messages" class="messages"></div>
+    <div id="typingIndicator" class="typing-indicator"></div>
     <form id="chat-form" class="d-flex">
       <input id="message-input" type="text" class="form-control me-2" placeholder="Digite sua mensagem..." autocomplete="off" required>
       <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Enviar</button>
@@ -124,71 +237,131 @@
   
   <!-- Socket.IO Client (servido pelo servidor) -->
   <script src="/socket.io/socket.io.js"></script>
-  <!-- Bootstrap Bundle JS (inclui Popper) -->
+  <!-- Bootstrap Bundle JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   
   <script>
-    // Variáveis globais
     let username = "";
+    let room = "";
     const userColors = {};
 
-    // Gera uma cor HSL aleatória para cada nome (se ainda não tiver)
+    // Cria o objeto de som para notificações
+    const notificationSound = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+
+    // Gera uma cor HSL aleatória para cada nome
     function getUserColor(name) {
-      if(userColors[name]) return userColors[name];
+      if (userColors[name]) return userColors[name];
       const hue = Math.floor(Math.random() * 360);
       const color = `hsl(${hue}, 70%, 50%)`;
       userColors[name] = color;
       return color;
     }
 
-    // Exibe o modal de escolha de nome
+    // Função para exibir um toast usando Bootstrap Toasts
+    function showToast(message) {
+      const toastContainer = document.getElementById('toastContainer');
+      const toastDiv = document.createElement('div');
+      toastDiv.className = 'toast align-items-center text-white bg-primary border-0';
+      toastDiv.setAttribute('role', 'alert');
+      toastDiv.setAttribute('aria-live', 'assertive');
+      toastDiv.setAttribute('aria-atomic', 'true');
+      toastDiv.style.minWidth = '250px';
+      toastDiv.innerHTML = `
+        <div class="d-flex">
+          <div class="toast-body">
+            ${message}
+          </div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+      `;
+      toastContainer.appendChild(toastDiv);
+      const toast = new bootstrap.Toast(toastDiv, { delay: 3000 });
+      toast.show();
+      toastDiv.addEventListener('hidden.bs.toast', () => {
+        toastDiv.remove();
+      });
+    }
+
+    // Exibe o modal de escolha de nome e sala
     const usernameModal = new bootstrap.Modal(document.getElementById('usernameModal'));
     document.addEventListener('DOMContentLoaded', () => {
+      if (localStorage.getItem('theme') === 'dark') {
+        document.body.classList.add('dark-mode');
+        document.getElementById('toggleTheme').innerHTML = '<i class="fas fa-sun"></i>';
+      }
       usernameModal.show();
+    });
+
+    // Dark Mode Toggle
+    document.getElementById('toggleTheme').addEventListener('click', () => {
+      document.body.classList.toggle('dark-mode');
+      if (document.body.classList.contains('dark-mode')) {
+        localStorage.setItem('theme', 'dark');
+        document.getElementById('toggleTheme').innerHTML = '<i class="fas fa-sun"></i>';
+      } else {
+        localStorage.setItem('theme', 'light');
+        document.getElementById('toggleTheme').innerHTML = '<i class="fas fa-moon"></i>';
+      }
     });
 
     const socket = io();
 
-    // Quando o usuário clicar para salvar o nome
+    // Quando o usuário clicar em "Entrar"
     document.getElementById('saveUsernameBtn').addEventListener('click', () => {
-      const input = document.getElementById('usernameInput');
-      const name = input.value.trim();
-      if(name === "") return;
+      const nameInput = document.getElementById('usernameInput');
+      const roomSelect = document.getElementById('roomSelect');
+      const name = nameInput.value.trim();
+      if (name === "") return;
       username = name;
-      socket.emit('set username', username);
+      room = roomSelect.value;
       usernameModal.hide();
+      document.getElementById('roomName').textContent = `Sala: ${room}`;
+      socket.emit('join room', { username, room });
+      showToast(`Bem-vindo, ${username}! Você entrou na sala ${room}.`);
     });
 
     const chatForm = document.getElementById('chat-form');
     const messageInput = document.getElementById('message-input');
     const messagesContainer = document.getElementById('messages');
     const onlineUsersContainer = document.getElementById('onlineUsers');
+    const typingIndicator = document.getElementById('typingIndicator');
+    let typingTimeout;
 
-    // Envia mensagem ao submeter formulário
     chatForm.addEventListener('submit', (e) => {
       e.preventDefault();
-      if(username === "") {
-        alert("Você precisa escolher um nome primeiro!");
+      if (username === "" || room === "") {
+        alert("Você precisa escolher um nome e sala primeiro!");
         return;
       }
       const text = messageInput.value;
       socket.emit('chat message', { username, message: text });
       messageInput.value = '';
-      messageInput.focus();
+      socket.emit('stop typing');
     });
 
-    // Renderiza cada mensagem recebida
+    messageInput.addEventListener('input', () => {
+      if (username === "" || room === "") return;
+      socket.emit('typing');
+      clearTimeout(typingTimeout);
+      typingTimeout = setTimeout(() => {
+        socket.emit('stop typing');
+      }, 1000);
+    });
+
+    // Renderiza mensagens com animação fade-in e toca o som de notificação para mensagens de outros
     socket.on('chat message', (data) => {
       const { username: sender, message, timestamp } = data;
       const messageDiv = document.createElement('div');
-      messageDiv.classList.add('message');
-      if(sender === username) {
+      messageDiv.classList.add('message', 'fade-in');
+      if (sender === username) {
         messageDiv.classList.add('my-message');
       } else {
         messageDiv.classList.add('other-message');
+        // Toca o som para mensagens de outros (ou do sistema)
+        notificationSound.play().catch(err => { /* Pode ocorrer se o browser exigir interação */ });
       }
       
-      if(sender !== username) {
+      if (sender !== username && sender !== "System") {
         const nameDiv = document.createElement('div');
         nameDiv.classList.add('message-username');
         nameDiv.textContent = sender;
@@ -207,18 +380,30 @@
       
       messagesContainer.appendChild(messageDiv);
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      
+      if (sender === "System") { 
+        showToast(message);
+      }
     });
 
-    // Atualiza a lista de usuários online
     socket.on('online users', (users) => {
       onlineUsersContainer.innerHTML = "";
       users.forEach(user => {
         const img = document.createElement('img');
-        // Gera avatar usando UI Avatars (background fixo para manter consistência)
-        img.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user)}&background=0D8ABC&color=fff&size=32`;
+        img.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user)}&background=${encodeURIComponent('0D8ABC')}&color=fff&size=32`;
         img.title = user;
         onlineUsersContainer.appendChild(img);
       });
+    });
+
+    socket.on('typing', (data) => {
+      const { username: typer } = data;
+      if (typer !== username) {
+        typingIndicator.innerHTML = `${typer} está digitando<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>`;
+      }
+    });
+    socket.on('stop typing', (data) => {
+      typingIndicator.textContent = "";
     });
   </script>
 </body>

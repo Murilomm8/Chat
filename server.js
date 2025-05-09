@@ -8,28 +8,58 @@ const port = process.env.PORT || 3000;
 // Serve arquivos estáticos da pasta "public"
 app.use(express.static('public'));
 
-let onlineUsers = {}; // Armazena username por socket.id
+// Estrutura para armazenar os usuários online por sala
+const onlineUsersByRoom = {};
 
 io.on('connection', (socket) => {
-  console.log(`Usuário conectado: ${socket.id}`);
+  console.log(`Socket conectado: ${socket.id}`);
 
-  // Recebe o nome do usuário e adiciona na lista de online
-  socket.on('set username', (username) => {
-    onlineUsers[socket.id] = username;
-    io.emit('online users', Object.values(onlineUsers));
+  // Evento para o usuário se juntar a uma sala
+  socket.on('join room', ({ username, room }) => {
+    socket.join(room);
+    socket.username = username; // salva o nome no socket
+    socket.room = room;
+
+    if (!onlineUsersByRoom[room]) onlineUsersByRoom[room] = {};
+    onlineUsersByRoom[room][socket.id] = username;
+
+    // Emite aos clientes da sala a lista atualizada de usuários online
+    io.to(room).emit('online users', Object.values(onlineUsersByRoom[room]));
+
+    // Notifica a sala (exceto o joining socket) que o usuário entrou
+    socket.to(room).emit('chat message', {
+      username: 'System',
+      message: `${username} entrou na sala.`,
+      timestamp: new Date().toLocaleTimeString()
+    });
   });
 
-  // Recebe a mensagem de chat; adiciona timestamp e retransmite para todos
+  // Evento para mensagem de chat
   socket.on('chat message', (data) => {
     data.timestamp = new Date().toLocaleTimeString();
-    io.emit('chat message', data);
+    io.to(socket.room).emit('chat message', data);
   });
 
-  // Remove usuário da lista ao desconectar
+  // Eventos para indicação de digitação
+  socket.on('typing', () => {
+    socket.to(socket.room).emit('typing', { username: socket.username });
+  });
+  socket.on('stop typing', () => {
+    socket.to(socket.room).emit('stop typing', { username: socket.username });
+  });
+
+  // Evento de desconexão: remove usuário da sala e atualiza a lista
   socket.on('disconnect', () => {
-    console.log(`Usuário desconectado: ${socket.id}`);
-    delete onlineUsers[socket.id];
-    io.emit('online users', Object.values(onlineUsers));
+    console.log(`Socket desconectado: ${socket.id}`);
+    if (socket.room && onlineUsersByRoom[socket.room]) {
+      delete onlineUsersByRoom[socket.room][socket.id];
+      io.to(socket.room).emit('online users', Object.values(onlineUsersByRoom[socket.room]));
+      socket.to(socket.room).emit('chat message', {
+        username: 'System',
+        message: `${socket.username} saiu da sala.`,
+        timestamp: new Date().toLocaleTimeString()
+      });
+    }
   });
 });
 
